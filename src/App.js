@@ -5,7 +5,6 @@ import './App.css';
 function App() {
   const [peerId, setPeerId] = useState('');
   const [remotePeerIds, setRemotePeerIds] = useState([]);
-  const [callerPeerIds, setCallerPeerIds] = useState([]);
   const [remotePeerIdValue, setRemotePeerIdValue] = useState('');
   const [loading, setLoading] = useState(true);
   const currentUserVideoRef = useRef(null);
@@ -24,10 +23,9 @@ function App() {
     });
 
     peer.on('call', (call) => {
-      console.log("test..... in call method", call.peer);
-      addRemotePeerId(call.peer)
+      addRemotePeerId(call.peer);
       call.answer(screenStreamRef.current); // Answer the call with screen stream
-       
+
       call.on('stream', (remoteStream) => {
         const remoteVideoRef = document.createElement('video');
         remoteVideoRef.srcObject = remoteStream;
@@ -35,19 +33,13 @@ function App() {
         remoteVideoRef.playsInline = true;
         document.getElementById('remoteVideos').appendChild(remoteVideoRef);
       });
-    });
 
-    peer.on('connection', (conn) => {
-      conn.on('data', (data) => {
-        if (data.type === 'requestRemoteControl') {
-          setRequestingRemoteControl(true);
-          setTargetPeerId(conn.peer);
-        } else if (data.type === 'grantRemoteControl') {
-          setRemoteControlEnabled(true);
-          setRequestingRemoteControl(false);
-        } else if (data.type === 'denyRemoteControl') {
-          setRequestingRemoteControl(false);
+      call.on('data', (data) => {
+        // Handle control commands from receiver
+        if (data.type === 'toggleFullScreen') {
+          toggleFullScreen(currentUserVideoRef);
         }
+        // You can add more control commands here
       });
     });
 
@@ -69,7 +61,6 @@ function App() {
         currentUserVideoRef.current.play();
 
         remotePeerIds.forEach(peerId => {
-          console.log("peerids "+remotePeerIds);
           const call = peerInstance.current.call(peerId, screenStream);
           call.on('stream', (remoteStream) => {
             const remoteVideoRef = document.createElement('video');
@@ -89,18 +80,7 @@ function App() {
     setRemotePeerIds([...remotePeerIds, callerPeer]);
     setRemotePeerIdValue('');
   };
-  const call = (remotePeerId) => {
-    var getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-    console.log("444444444444");
-    getUserMedia({ video: true, audio: true }, (mediaStream) => {
 
-      currentUserVideoRef.current.srcObject = mediaStream;
-      currentUserVideoRef.current.play();
-
-      const call = peerInstance.current.call(remotePeerId, mediaStream)
-    });
-  }
-  
   const toggleFullScreen = (videoRef) => {
     if (videoRef.current) {
       if (videoRef.current.requestFullscreen) {
@@ -118,17 +98,15 @@ function App() {
   const requestRemoteControl = () => {
     const conn = peerInstance.current.connect(targetPeerId);
     conn.on('open', () => {
-      console.log('Connection opened');
       conn.send({ type: 'requestRemoteControl' });
-      console.log('Request sent');
     });
   };
-  
 
   const grantRemoteControl = () => {
     const conn = peerInstance.current.connect(targetPeerId);
     conn.on('open', () => {
       conn.send({ type: 'grantRemoteControl' });
+      setRemoteControlEnabled(true);
     });
   };
 
@@ -137,6 +115,37 @@ function App() {
     conn.on('open', () => {
       conn.send({ type: 'denyRemoteControl' });
     });
+  };
+
+  const sendControlCommand = (type) => {
+    const conn = peerInstance.current.connect(targetPeerId);
+    conn.on('open', () => {
+      conn.send({ type });
+    });
+  };
+
+  const call = (remotePeerId) => {
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then((mediaStream) => {
+        currentUserVideoRef.current.srcObject = mediaStream;
+        currentUserVideoRef.current.play();
+
+        const call = peerInstance.current.call(remotePeerId, mediaStream);
+        call.on('stream', (remoteStream) => {
+          const remoteVideoRef = document.createElement('video');
+          remoteVideoRef.srcObject = remoteStream;
+          remoteVideoRef.autoplay = true;
+          remoteVideoRef.playsInline = true;
+          document.getElementById('remoteVideos').appendChild(remoteVideoRef);
+        });
+
+        call.on('close', () => {
+          console.log('Call ended');
+        });
+      })
+      .catch((err) => {
+        console.error('Error accessing media devices:', err);
+      });
   };
 
   return (
@@ -149,7 +158,8 @@ function App() {
       <div className="remote-peer">
         <label>Add Remote Peer ID:</label>
         <input type="text" value={remotePeerIdValue} onChange={e => setRemotePeerIdValue(e.target.value)} />
-        <button onClick={() => call(remotePeerIdValue)}>Call</button>      </div>
+        <button onClick={() => call(remotePeerIdValue)}>Call</button>
+      </div>
       <div className="actions">
         <button onClick={startScreenShare}>Start Screen Share</button>
         {requestingRemoteControl && (
@@ -159,7 +169,8 @@ function App() {
       <div className="video-container">
         <div className="local-video">
           <label>Your Screen:</label>
-          <video ref={currentUserVideoRef} autoPlay muted playsInline onClick={() => toggleFullScreen(currentUserVideoRef)} />
+          <video ref={currentUserVideoRef} autoPlay muted playsInline />
+          <button onClick={() => sendControlCommand('toggleFullScreen')}>Toggle Full Screen</button>
         </div>
         <div className="remote-videos">
           <label>Remote Screens:</label>
