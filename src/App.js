@@ -5,6 +5,7 @@ import './App.css';
 function App() {
   const [peerId, setPeerId] = useState('');
   const [remotePeerIds, setRemotePeerIds] = useState([]);
+  const [callerPeerIds, setCallerPeerIds] = useState([]);
   const [remotePeerIdValue, setRemotePeerIdValue] = useState('');
   const [loading, setLoading] = useState(true);
   const currentUserVideoRef = useRef(null);
@@ -23,8 +24,10 @@ function App() {
     });
 
     peer.on('call', (call) => {
+      console.log("test..... in call method", call.peer);
+      addRemotePeerId(call.peer)
       call.answer(screenStreamRef.current); // Answer the call with screen stream
-
+       
       call.on('stream', (remoteStream) => {
         const remoteVideoRef = document.createElement('video');
         remoteVideoRef.srcObject = remoteStream;
@@ -66,6 +69,7 @@ function App() {
         currentUserVideoRef.current.play();
 
         remotePeerIds.forEach(peerId => {
+          console.log("peerids "+remotePeerIds);
           const call = peerInstance.current.call(peerId, screenStream);
           call.on('stream', (remoteStream) => {
             const remoteVideoRef = document.createElement('video');
@@ -81,11 +85,22 @@ function App() {
       });
   };
 
-  const addRemotePeerId = () => {
-    setRemotePeerIds([...remotePeerIds, remotePeerIdValue]);
+  const addRemotePeerId = (callerPeer) => {
+    setRemotePeerIds([...remotePeerIds, callerPeer]);
     setRemotePeerIdValue('');
   };
+  const call = (remotePeerId) => {
+    var getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+    console.log("444444444444");
+    getUserMedia({ video: true, audio: true }, (mediaStream) => {
 
+      currentUserVideoRef.current.srcObject = mediaStream;
+      currentUserVideoRef.current.play();
+
+      const call = peerInstance.current.call(remotePeerId, mediaStream)
+    });
+  }
+  
   const toggleFullScreen = (videoRef) => {
     if (videoRef.current) {
       if (videoRef.current.requestFullscreen) {
@@ -134,8 +149,7 @@ function App() {
       <div className="remote-peer">
         <label>Add Remote Peer ID:</label>
         <input type="text" value={remotePeerIdValue} onChange={e => setRemotePeerIdValue(e.target.value)} />
-        <button onClick={addRemotePeerId}>Add</button>
-      </div>
+        <button onClick={() => call(remotePeerIdValue)}>Call</button>      </div>
       <div className="actions">
         <button onClick={startScreenShare}>Start Screen Share</button>
         {requestingRemoteControl && (
