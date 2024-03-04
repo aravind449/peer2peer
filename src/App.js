@@ -10,6 +10,8 @@ function App() {
   const currentUserVideoRef = useRef(null);
   const peerInstance = useRef(null);
   const screenStreamRef = useRef(null);
+  const dataConnection = useRef(null);
+  const [connectionStatus, setConnectionStatus] = useState('');
   const [requestingRemoteControl, setRequestingRemoteControl] = useState(false);
   const [remoteControlEnabled, setRemoteControlEnabled] = useState(false);
   const [targetPeerId, setTargetPeerId] = useState('');
@@ -21,7 +23,14 @@ function App() {
       setPeerId(id);
       setLoading(false);
     });
-
+    peer.on('connection', (conn) => {
+      addRemotePeerId(conn.peer);
+      setConnectionStatus(`Connected to ${conn.peer}`);
+      dataConnection.current = conn;
+      dataConnection.current.on('data', (data) => {
+        console.log('Received data:', data);
+      });
+    });
     peer.on('call', (call) => {
       addRemotePeerId(call.peer);
       call.answer(screenStreamRef.current); // Answer the call with screen stream
@@ -123,9 +132,11 @@ function App() {
       conn.send({ type });
     });
   };
-
-  const call = (remotePeerId) => {
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+  const connectToPeer = (remotePeerId) => {
+    peerInstance.current.connect(remotePeerId);
+  };
+  const call = async (remotePeerId) => {
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false})
       .then((mediaStream) => {
         currentUserVideoRef.current.srcObject = mediaStream;
         currentUserVideoRef.current.play();
@@ -142,7 +153,7 @@ function App() {
         call.on('close', () => {
           console.log('Call ended');
         });
-      })
+     })
       .catch((err) => {
         console.error('Error accessing media devices:', err);
       });
@@ -158,7 +169,7 @@ function App() {
       <div className="remote-peer">
         <label>Add Remote Peer ID:</label>
         <input type="text" value={remotePeerIdValue} onChange={e => setRemotePeerIdValue(e.target.value)} />
-        <button onClick={() => call(remotePeerIdValue)}>Call</button>
+        <button onClick={() => connectToPeer(remotePeerIdValue)}>Call</button>
       </div>
       <div className="actions">
         <button onClick={startScreenShare}>Start Screen Share</button>
