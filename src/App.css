@@ -6,7 +6,9 @@
 .peer-id, .remote-peer, .actions {
   margin-bottom: 10px;
 }
-
+.playIcons {
+ margin: 10px;
+}
 label {
   font-weight: bold;
 }
